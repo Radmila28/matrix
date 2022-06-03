@@ -1,77 +1,61 @@
-from numpy import array
-from numpy.linalg import norm, det
-from numpy.linalg import solve as solve_out_of_the_box
-from numpy.random import uniform
+import pygad
+import numpy
 
-N = 100
-SMALL = 1e-5
+items = ['яблоки', 'бананы', 'зонт', 'наушники', 'ноубук', 'футболка', 'панама', 'дождевик',
+         'пуховик', 'камера', 'зачет по питону']
+values = [100, 300, 200, 40, 500, 70, 100, 250, 300, 280, 300]
+weights = [7, 7, 6, 2, 5, 6, 1, 3, 10, 3, 15]
 
+backpack_limit = 25
 
-def vector_gauss(a, b):
-    a, b, d = a.copy(), b.copy(), len(a)
-
-    # прямой
-    ind = 0
-    for i in range(d):
-        if abs(a[i][ind]) >= SMALL:
-            for j in range(i + 1, d):
-                cfc = a[j][ind] / a[i][ind]
-                a[j], b[j] = a[j] - a[i] * cfc, b[j] - b[i] * cfc
-            ind += 1
-        else:
-            continue
-    # обратный
-    for i in range(d - 1, -1, -1):
-        for j in range(d - 1, i - 1, -1):
-            if (abs(j - i) < SMALL):
-                b[i] /= a[i][j]
-            else:
-                b[i] -= a[i][j] * b[j]
-    return b
+gene_space = [0, 1]
 
 
-def test_error(solver_function):
-    # Сгенерируем хорошо обусловленную систему
-    while True:
-        a = uniform(0.0, 1.0, (N, N))
-        b = uniform(0.0, 1.0, (N,))
+def fitness_func(solution, solution_idx):
+    sum_weight = numpy.sum(solution * weights)
+    sum_value = numpy.sum(solution * values)
+    if sum_weight > backpack_limit:
+        return 0
+    else:
+        return sum_value
 
-        d = det(a)
-        if abs(d) <= SMALL:  # Определитель маленький — плохо
-            # print(f"det: {d}")
-            continue  # Попробуем ещё
-        if d < 0.0:  # Отрицательный — поменяем знак
-            # print(f"det: {d}")
-            a = -a
-
-        try:
-            oob_solution = solve_out_of_the_box(a, b)
-        except Exception as e:  # Всё-таки система плохая
-            # print(f"exc: {e}")
-            continue  # Попробуем ещё
-
-        sb = a @ oob_solution
-        if norm(sb - b, ord=1) > SMALL:
-            # print("Bad solution...")
-            continue  # Всё же не очень система получилась =)
-
-        break  # Всё, считаем, что мы случайно сгенерировали хорошую систему
-
-    tested_solution = solver_function(a, b)
-    return norm(tested_solution - oob_solution, ord=1)
+fitness_function = fitness_func
 
 
-a = array([
-    [1.5, 2.0, 1.5, 2.0],
-    [3.0, 2.0, 4.0, 1.0],
-    [1.0, 6.0, 0.0, 4  ],
-    [2.0, 1.0, 4.0, 3  ]
-], dtype=float)
+sol_per_pop = 11
+num_genes = len(items)
+num_parents_mating = 5
+num_generations = 30
+keep_parents = 2
+parent_selection_type = "sss"
+crossover_type = "single_point"
+mutation_type = "random"
+mutation_percent_genes = 11
 
-b = array([5, 6, 7, 8], dtype=float)
-solution = vector_gauss(a, b)
-oob_solution = solve_out_of_the_box(a, b)
+ga_instance = pygad.GA(gene_space=gene_space,
+                       num_generations=num_generations,
+                       num_parents_mating=num_parents_mating,
+                       fitness_func=fitness_function,
+                       sol_per_pop=sol_per_pop,
+                       num_genes=num_genes,
+                       parent_selection_type=parent_selection_type,
+                       keep_parents=keep_parents,
+                       crossover_type=crossover_type,
+                       mutation_type=mutation_type,
+                       mutation_percent_genes=mutation_percent_genes)
 
-print(solution)
-print("Макс отклонение компоненты решения:", norm(solution-oob_solution, ord=1))
-print(test_error(vector_gauss))
+ga_instance.run()
+
+solution, solution_fitness, solution_idx = ga_instance.best_solution()
+print("Параметры наилучшего решения: {solution}".format(solution=solution))
+print("Фитнес-ценность лучшего решения = {solution_fitness}".format(solution_fitness=solution_fitness))
+
+prediction = numpy.sum(solution * values)
+print("Прогнозируемая стоимость товаров: {prediction}".format(prediction=prediction))
+
+print("Предметы:", end=" ")
+for i in range(len(items)):
+    if solution[i] == 1:
+        print("{item} ({weight})".format(item=items[i], weight=weights[i]), end=" ")
+
+ga_instance.plot_fitness()
